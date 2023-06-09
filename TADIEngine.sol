@@ -1,11 +1,12 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.7;
 
 import {Functions, FunctionsClient} from "./dev/functions/FunctionsClient.sol";
 import "./strings.sol";
 
-contract TADIEngine {
+contract TADIEngine is FunctionsClient {
   using Functions for Functions.Request;
+  using strings for *;
 
   struct Shipper {
     uint shipperID;
@@ -31,8 +32,8 @@ contract TADIEngine {
   mapping(address => mapping(uint => Container)) public containers;
   mapping(uint => address) public containerIdToOwner;
   mapping(address => uint[]) public containerIndex;
-  mapping(uint => uint[]) public trackingNoToContainerIds;
-  mapping(uint => uint) public containerIdToTrackingNo;
+  mapping(string => uint[]) public trackingNoToContainerIds;
+  mapping(uint => string) public containerIdToTrackingNo;
 
   address public owner;
   bool public active;
@@ -40,7 +41,7 @@ contract TADIEngine {
   bytes32 public latestRequestId;
   bytes public latestResponse;
   bytes public latestError;
-  address public s_oracle;
+  address public functions_oracle;
   string[] latestTrackingData;
 
   uint public premium = 20000000000000000;
@@ -70,12 +71,12 @@ contract TADIEngine {
   constructor(address oracle) payable FunctionsClient(oracle) {
     owner = msg.sender;
     active = true;
-    s_oracle = oracle;
+    functions_oracle = oracle;
   }
 
   function newShipper(address _shipper) public returns (uint) {
     address shipperAddy;
-    if (msg.sender = owner) {
+    if (msg.sender == owner) {
       shipperAddy = _shipper;
     } else {
       shipperAddy = msg.sender;
@@ -91,14 +92,14 @@ contract TADIEngine {
     address _shipper,
     string memory _origin,
     uint _gWeight,
-    uint _trackingNumber,
+    string memory _trackingNumber,
     uint _dueDate
   ) public payable returns (uint) {
     if (msg.value < premium) {
       revert TADIEngine__InvalidAmountSent(msg.value);
     }
     address shipperAddy;
-    if (msg.sender = owner) {
+    if (msg.sender == owner) {
       shipperAddy = _shipper;
     } else {
       shipperAddy = msg.sender;
@@ -123,7 +124,7 @@ contract TADIEngine {
     return SEQ_containerID;
   }
 
-  function getTrackingNumber(uint _containerID) public view returns (uint) {
+  function getTrackingNumber(uint _containerID) public view returns (string memory) {
     return containerIdToTrackingNo[_containerID];
   }
 
@@ -153,7 +154,7 @@ contract TADIEngine {
 
   function modifyGrossWeight(address _shipper, uint _containerID, uint newWeight) public ContractActive returns (uint) {
     address shipperAddy;
-    if (msg.sender = owner) {
+    if (msg.sender == owner) {
       shipperAddy = _shipper;
     } else {
       shipperAddy = msg.sender;
@@ -166,7 +167,7 @@ contract TADIEngine {
     return containers[getContainerOwner(_containerID)][_containerID].latestLoc;
   }
 
-  function getLatestTimestamp(uint _containerID) public view OnlyOwner returns (string memory) {
+  function getLatestTimestamp(uint _containerID) public view OnlyOwner returns (uint) {
     return containers[getContainerOwner(_containerID)][_containerID].latestTimestamp;
   }
 
@@ -220,22 +221,22 @@ contract TADIEngine {
 
     bool nilErr = (err.length == 0);
     if (nilErr) {
-      string snapshot = abi.decode(response, (string));
+      string memory snapshot = abi.decode(response, (string));
       latestTrackingData = smt(snapshot);
     }
   }
 
   function trackingUpdater(uint _containerId) public OnlyOwner {
     containers[getContainerOwner(_containerId)][_containerId].latestLoc = latestTrackingData[0];
-    containers[getContainerOwner(_containerId)][_containerId].latestTimestamp = latestTrackingData[1].toNumber();
+    containers[getContainerOwner(_containerId)][_containerId].latestTimestamp = st2num(latestTrackingData[1]);
   }
 
-  function ltrTester(string _loc, uint _time) public OnlyOwner {
+  function ltrTester(string memory _loc, string memory _time) public OnlyOwner {
     latestTrackingData[0] = _loc;
     latestTrackingData[1] = _time;
   }
 
-  function smt(string memory _snapshot) public returns (string[] memory) {
+  function smt(string memory _snapshot) public pure returns (string[] memory) {
     strings.slice memory s = _snapshot.toSlice();
     strings.slice memory delim = "-".toSlice();
     string[] memory parts = new string[](s.count(delim) + 1);
@@ -244,12 +245,25 @@ contract TADIEngine {
     }
     return parts;
   }
-  // Germany-169872345
-  // 52.115421, 4.280247 = 052 115421 004 280247
 
-  // function convertUintResponseToCoordStruct(
-  //     uint _coordsFromOracle
-  // ) internal returns (Coordinates memory) {
-  //     string memory latitude;
-  //     string memory longitude;
-}
+  function st2num(string memory numString) public pure returns (uint) {
+    uint val = 0;
+    bytes memory stringBytes = bytes(numString);
+    for (uint i = 0; i < stringBytes.length; i++) {
+      uint exp = stringBytes.length - i;
+      bytes1 ival = stringBytes[i];
+      uint8 uval = uint8(ival);
+      uint jval = uval - uint(0x30);
+
+      val += (uint(jval) * (10 ** (exp - 1)));
+    }
+    return val;
+  }
+  
+// Germany-169872345
+
+// i have like 50 mil bro
+// i have like 50 mill bra
+// i have like 50 mill bro
+// i rly dont care about the cash
+

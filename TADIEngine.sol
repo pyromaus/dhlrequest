@@ -253,31 +253,3 @@ contract TADIEngine {
   //     string memory latitude;
   //     string memory longitude;
 }
-
-// anyone can track the package with the advantage of
-// having tracking without anyone knowing that youre tracking it
-// cos its just a view function, theres no URL being visited and
-// thereby tracked/pinged to the feds
-
-// when you log on to any package tracking service on Web2, in the best
-// case, they know somebody triggered a tracking info fetch at a known
-// point in time (in the worst case, they identified the person) cos
-// their server gets a ping when someone connects and loads the page etc.
-// this can potentially put the package under greater scrutiny
-//
-// with this smart contract, the tracking info is written on-chain.
-// the only pinging being done here is by the party updating the
-// coordinates. the end-user calls a view function to see the latest
-// coordinates, which doesn't leave a trace that anyone called anything
-
-// check if the view function callers are invisible when they do it
-
-// bro sell this to the
-// theres a massive upside to this
-// millions of volume per site
-
-// i have like 50 mil
-// i have like 50 mil bro
-// i have like 50 mill bro
-// i have like 50 mill bro
-// i rly dont care about the cash

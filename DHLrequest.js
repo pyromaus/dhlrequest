@@ -193,8 +193,8 @@ async function main() {
   })
   await tadiContract.trackingUpdater(newContainerTx)
   console.log(`Latest Location and timestamp:`)
-  const latestLoc = await tadiContract.getLatestLocation(newShipperAddy, newContainerTx)
-  const latestTimestamp = await tadiContract.getLatestTimestamp(newShipperAddy, newContainerTx)
+  const latestLoc = await tadiContract.getLatestLocation(newContainerTx)
+  const latestTimestamp = await tadiContract.getLatestTimestamp(newContainerTx)
   console.log(`Location: ${latestLoc}`)
   console.log(`Time: ${latestTimestamp}`)
 }

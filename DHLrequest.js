@@ -1,7 +1,7 @@
 const ethcrypto = require("eth-crypto")
 const axios = require("axios")
 const fs = require("fs").promises
-const { getNamedAccounts } = require("hardhat")
+const { ethers } = require("ethers")
 
 async function main() {
   // Provider config currently set for Polygon Mumbai
@@ -13,64 +13,82 @@ async function main() {
   const signer = new ethers.Wallet(signerPrivateKey, provider)
 
   // TADI contract
-  const tadiEngineAddress = "0x"
-  const tadiEngineAbiPath = "/.json"
+  const tadiEngineAddress = "0x6266530eCC40E53d20Fd22C50fcF2a08DBD78B95"
+  const tadiEngineAbiPath = "build/artifacts/contracts/TADIEngine.sol/TADIEngine.json"
 
   const contractAbi = JSON.parse(await fs.readFile(tadiEngineAbiPath, "utf8")).abi
   const tadiContract = new ethers.Contract(tadiEngineAddress, contractAbi, signer)
 
   const startingTadiBalance = await tadiContract.provider.getBalance(tadiContract.address)
   console.log(`Starting TADI balance: ${startingTadiBalance}`)
-  // Create Shipper and his Container
-  const newShipperAddy = "0x9b25B2A4675B0EFe83C12365456cDC2f2e588FB7"
+  console.log(`Payout = 0.2 MATIC`)
+  console.log(`Premium = 0.02 MATIC`)
+
+  const newShipperAddy = "0x9b25b2a4675b0efe83c12365456cdc2f2e588fb7"
   const containerOrigin = "Honky Tonk Town"
   const grossWeight = 2500
   const trackingNumber = "00340434726200036723"
   const dueDate = 1688852486
-
+  const parsedPremium = ethers.utils.parseEther("0.02")
   const newShipperTx = await tadiContract.newShipper(newShipperAddy)
-  console.log(`New shipper ID: ${newShipperTx}`)
+  console.log("Creating new Shipper file..")
+  const shipperTxResponse = await newShipperTx.wait(1)
   const newContainerTx = await tadiContract.addContainer(
     newShipperAddy,
     containerOrigin,
     grossWeight,
     trackingNumber,
-    dueDate
+    dueDate,
+    { gasLimit: 12000000 }
   )
-  console.log(`New Container ID: ${newContainerTx}`)
-  const checkForDelayTx = await tadiContract.checkForDelay(newContainerTx)
+  //const decodedValue = web3.eth.abi.decodeParameter("uint256", encodedValue)
+  console.log("Adding shipment container info...")
+  const containerTxResponse = await newContainerTx.wait(1)
+  const containerID = 1
+  console.log(`New Container ID: ${containerID}`)
+  const checkForDelayTx = await tadiContract.checkForDelay(containerID)
+  const checkForDelayTxResponse = await checkForDelayTx.wait(2)
   const tadiBalance = await tadiContract.provider.getBalance(tadiContract.address)
   console.log(`Checked for delays. Contract balance: ${tadiBalance}`)
 
   console.log(`Purchasing delay protection for the container...`)
-  await tadiContract.purchaseDelayProtection(newContainerTx)
 
-  console.log(`Simulating delay...`)
-  await tadiContract.simulateDelay(newContainerTx)
+  const purchaseTx = await tadiContract.purchaseDelayProtection(containerID, {
+    value: parsedPremium,
+    gasLimit: 12000000,
+  })
+  const purchaseReceipt = await purchaseTx.wait(1)
 
-  await tadiContract.checkForDelay(newContainerTx)
-  console.log(`Delay detected with protection. sending payout..`)
+  await tadiContract.simulateDelay(containerID)
+  console.log(`Simulating delay... Container ${containerID} is due YESTERDAY`)
+
+  const secondDelayTx = await tadiContract.checkForDelay(containerID, { gasLimit: 4200000 })
+  console.log("Checking for shipment delays..")
+  await secondDelayTx.wait(2)
+  console.log(`Delay detected, with protection. Sending payout immediately..`)
 
   const tadiEndingBalance = await tadiContract.provider.getBalance(tadiContract.address)
   console.log(`TADI ending balance: ${tadiEndingBalance}`)
+  console.log(`Payout = 0.2 MATIC`)
+  console.log(`Premium = 0.02 MATIC`)
 
-  console.log(`Attempting to track your container..`)
+  console.log(`Attempting to track your container...`)
   // Transaction config
-  const gasLimit = 300000 // Transaction gas limit
+  const gasLimit = 12000000 // Transaction gas limit
   const verificationBlocks = 2 // Number of blocks to wait for transaction
 
   // Chainlink Functions request config
   // Chainlink Functions subscription ID
   const subscriptionId = 1305
   // Gas limit for the Chainlink Functions request
-  const requestGas = 5500000
+  const requestGas = 12000000
 
-  const source = await fs.readFile("./DHLtestsource.js", "utf8")
+  const source = await fs.readFile("./DHLsource.js", "utf8")
   const args = [trackingNumber]
   const secrets = { dhlKey: process.env.DHLKEY }
 
   const oracleAddress = "0xeA6721aC65BCeD841B8ec3fc5fEdeA6141a0aDE4" // Polygon Mumbai
-  const oracleAbiPath = "./artifacts/contracts/dev/functions/FunctionsOracle.sol/FunctionsOracle.json"
+  const oracleAbiPath = "build/artifacts/contracts/dev/functions/FunctionsOracle.sol/FunctionsOracle.json"
   const oracleAbi = JSON.parse(await fs.readFile(oracleAbiPath, "utf8")).abi
   const oracle = new ethers.Contract(oracleAddress, oracleAbi, signer)
 
@@ -80,7 +98,6 @@ async function main() {
   if (typeof secrets !== "undefined") {
     const result = await getEncryptedSecrets(secrets, oracle, signerPrivateKey)
     if (isObject(secrets)) {
-      // inline secrets are uploaded to gist by the script so they must be cleanup at the end of the script
       doGistCleanup = true
       encryptedSecrets = result.encrypted
       gistUrl = result.gistUrl
@@ -99,7 +116,7 @@ async function main() {
   oracle.on("UserCallbackRawError", (eventRequestId, msg) => {
     store[eventRequestId] = { userCallbackRawError: true, msg: msg }
   })
-  tadiEngineContract.on("OCRResponse", (eventRequestId, response, err) => {
+  tadiContract.on("OCRResponse", (eventRequestId, response, err) => {
     store[eventRequestId] = { response: response, err: err }
   })
 
@@ -117,26 +134,19 @@ async function main() {
       return resolve()
     }
 
-    // Submit the request
-    // Order of the parameters is critical
     const requestTx = await tadiContract.executeRequest(
       source,
       encryptedSecrets ?? "0x",
-      args ?? [], // Chainlink Functions request args
-      subscriptionId, // Subscription ID
-      gasLimit, // Gas limit for the transaction
-      (overrides = {
-        //Gas limit for the Chainlink Functions request
-        gasLimit: requestGas,
-      })
+      args ?? [],
+      subscriptionId,
+      requestGas,
+      { gasLimit: gasLimit }
     )
 
     let requestId
 
     console.log(`Waiting ${verificationBlocks} blocks for transaction ` + `${requestTx.hash} to be confirmed...`)
 
-    // TODO: Need a better way to print this. Works on some requests and not others
-    // Doesn't handle subscription balance errors correctly
     const requestTxReceipt = await requestTx.wait(verificationBlocks)
 
     const requestEvent = requestTxReceipt.events.filter((event) => event.event === "RequestSent")[0]
@@ -146,7 +156,6 @@ async function main() {
 
     console.log(`Waiting for fulfillment...\n`)
 
-    // poll
     let polling
     async function checkStore() {
       const result = store[requestId]
@@ -178,23 +187,17 @@ async function main() {
       }
     }
 
-    polling = setInterval(checkStore, 1000) // poll every second to see if an event once received
+    polling = setInterval(checkStore, 1000)
 
-    // If a response is not received within 5 minutes, the request has failed
-    setTimeout(
-      () =>
-        reject(
-          "A response not received within 5 minutes of the request " +
-            "being initiated and has been canceled. Your subscription " +
-            "was not charged. Please make a new request."
-        ),
-      300_000
-    )
+    setTimeout(() => reject("5 minutes brah"), 300_000)
   })
-  await tadiContract.trackingUpdater(newContainerTx)
+  const testTx = await tadiContract.ltrTester("Holland", "1696969696", { gasLimit: 4200000 })
+  await testTx.wait(1)
+  const updaterTx = await tadiContract.trackingUpdater(containerID, { gasLimit: 4200000 })
+  await updaterTx.wait(1)
   console.log(`Latest Location and timestamp:`)
-  const latestLoc = await tadiContract.getLatestLocation(newContainerTx)
-  const latestTimestamp = await tadiContract.getLatestTimestamp(newContainerTx)
+  const latestLoc = await tadiContract.getLatestLocation(containerID)
+  const latestTimestamp = await tadiContract.getLatestTimestamp(containerID)
   console.log(`Location: ${latestLoc}`)
   console.log(`Time: ${latestTimestamp}`)
 }
@@ -206,12 +209,10 @@ async function main() {
 //   - A JSON object with { apiKey: 'your_secret_here' }
 //   - An array of secretsURLs
 async function getEncryptedSecrets(secrets, oracle, signerPrivateKey = null) {
-  // Fetch the DON public key from on-chain
   let DONPublicKey = await oracle.getDONPublicKey()
-  // Remove the preceding 0x from the DON public key
+
   DONPublicKey = DONPublicKey.slice(2)
 
-  // If the secrets object is empty, do nothing, else encrypt secrets
   if (isObject(secrets) && secrets) {
     if (!signerPrivateKey) {
       throw Error("signerPrivateKey is required to encrypt inline secrets")
@@ -233,15 +234,12 @@ async function getEncryptedSecrets(secrets, oracle, signerPrivateKey = null) {
       gistUrl: secretsURL,
       encrypted: "0x" + (await (0, encrypt)(DONPublicKey, `${secretsURL}/raw`)),
     }
-
-    //  return [`${secretsURL}/raw`];
   }
   if (secrets.length > 0) {
-    // Remote secrets managed by the user
     if (!Array.isArray(secrets)) {
       throw Error("Unsupported remote secrets format.  Remote secrets must be an array.")
     }
-    // Verify off-chain secrets and encrypt if verified
+
     if (await verifyOffchainSecrets(secrets, oracle)) {
       return "0x" + (await (0, encrypt)(DONPublicKey, secrets.join(" ")))
     } else {
@@ -249,7 +247,6 @@ async function getEncryptedSecrets(secrets, oracle, signerPrivateKey = null) {
     }
   }
 
-  // Return 0x if no secrets need to be encrypted
   return "0x"
 }
 
@@ -314,8 +311,6 @@ async function encrypt(readerPublicKey, message) {
   return ethcrypto.default.cipher.stringify(encrypted)
 }
 
-// create gist
-// code from ./tasks/utils
 const createGist = async (githubApiToken, encryptedOffchainSecrets) => {
   await checkTokenGistScope(githubApiToken)
 
@@ -325,7 +320,6 @@ const createGist = async (githubApiToken, encryptedOffchainSecrets) => {
     Authorization: `token ${githubApiToken}`,
   }
 
-  // construct the API endpoint for creating a Gist
   const url = "https://api.github.com/gists"
   const body = {
     public: false,
@@ -357,8 +351,7 @@ const checkTokenGistScope = async (githubApiToken) => {
   if (response.status !== 200) {
     throw new Error(`Failed to get user data: ${response.status} ${response.statusText}`)
   }
-  // Github's newly-added fine-grained token do not currently allow for verifying that the token scope is restricted to Gists.
-  // This verification feature only works with classic Github tokens and is otherwise ignored
+
   const scopes = response.headers["x-oauth-scopes"]?.split(", ")
 
   if (scopes && scopes?.[0] !== "gist") {
@@ -405,3 +398,4 @@ main()
     console.error(error)
     process.exit(1)
   })
+

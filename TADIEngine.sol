@@ -32,7 +32,7 @@ contract TADIEngine is FunctionsClient {
   mapping(address => mapping(uint => Container)) public containers;
   mapping(uint => address) public containerIdToOwner;
   mapping(address => uint[]) public containerIndex;
-  mapping(string => uint[]) public trackingNoToContainerIds;
+  mapping(string => uint) public trackingNoToContainerId;
   mapping(uint => string) public containerIdToTrackingNo;
 
   address public owner;
@@ -42,7 +42,7 @@ contract TADIEngine is FunctionsClient {
   bytes public latestResponse;
   bytes public latestError;
   address public functions_oracle;
-  string[] latestTrackingData;
+  string[] public latestTrackingData;
 
   uint public premium = 20000000000000000;
   uint public payout = 200000000000000000;
@@ -50,6 +50,8 @@ contract TADIEngine is FunctionsClient {
   uint public SEQ_containerID = 0;
 
   event OCRResponse(bytes32 indexed requestId, bytes result, bytes err);
+
+  event Received(address _sender, uint _value);
 
   modifier OnlyOwner() {
     if (msg.sender != owner) {
@@ -95,9 +97,6 @@ contract TADIEngine is FunctionsClient {
     string memory _trackingNumber,
     uint _dueDate
   ) public payable returns (uint) {
-    if (msg.value < premium) {
-      revert TADIEngine__InvalidAmountSent(msg.value);
-    }
     address shipperAddy;
     if (msg.sender == owner) {
       shipperAddy = _shipper;
@@ -128,11 +127,19 @@ contract TADIEngine is FunctionsClient {
     return containerIdToTrackingNo[_containerID];
   }
 
+  function getContainerId(string memory _trackingNumber) public view returns (uint) {
+    return trackingNoToContainerId[_trackingNumber];
+  }
+
   function purchaseDelayProtection(uint _containerID) public payable {
     if (msg.value < premium) {
       revert TADIEngine__InvalidAmountSent(msg.value);
     }
     containers[getContainerOwner(_containerID)][_containerID].delayProtection = true;
+  }
+
+  receive() external payable {
+    emit Received(msg.sender, msg.value);
   }
 
   function simulateDelay(uint _containerID) public {
@@ -259,11 +266,5 @@ contract TADIEngine is FunctionsClient {
     }
     return val;
   }
-  
+}
 // Germany-169872345
-
-// i have like 50 mil bro
-// i have like 50 mill bra
-// i have like 50 mill bro
-// i rly dont care about the cash
-

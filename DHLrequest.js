@@ -4,15 +4,12 @@ const fs = require("fs").promises
 const { ethers } = require("ethers")
 
 async function main() {
-  // Provider config currently set for Polygon Mumbai
 
   const provider = new ethers.providers.JsonRpcProvider(process.env.POLYGON_MUMBAI_RPC_URL)
 
-  // Get private wallet key from the .env file
   const signerPrivateKey = process.env.PRIVATE_KEY
   const signer = new ethers.Wallet(signerPrivateKey, provider)
 
-  // TADI contract
   const tadiEngineAddress = "0x6266530eCC40E53d20Fd22C50fcF2a08DBD78B95"
   const tadiEngineAbiPath = "build/artifacts/contracts/TADIEngine.sol/TADIEngine.json"
 
@@ -42,7 +39,6 @@ async function main() {
     dueDate,
     { gasLimit: 12000000 }
   )
-  //const decodedValue = web3.eth.abi.decodeParameter("uint256", encodedValue)
   console.log("Adding shipment container info...")
   const containerTxResponse = await newContainerTx.wait(1)
   const containerID = 1
@@ -73,7 +69,7 @@ async function main() {
   console.log(`Payout = 0.2 MATIC`)
   console.log(`Premium = 0.02 MATIC`)
 
-  console.log(`Attempting to track your container...`)
+  console.log(`Attempting to track your container via the DHL API...`)
   // Transaction config
   const gasLimit = 12000000 // Transaction gas limit
   const verificationBlocks = 2 // Number of blocks to wait for transaction

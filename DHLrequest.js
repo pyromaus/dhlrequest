@@ -20,6 +20,7 @@ async function main() {
   const tadiContract = new ethers.Contract(tadiEngineAddress, contractAbi, signer)
 
   const startingTadiBalance = await tadiContract.provider.getBalance(tadiContract.address)
+  console.log(`Welcome to the Tracking and Delay Insurance (TADI) App`)
   console.log(`Starting TADI balance: ${startingTadiBalance}`)
   console.log(`Payout = 0.2 MATIC`)
   console.log(`Premium = 0.02 MATIC`)

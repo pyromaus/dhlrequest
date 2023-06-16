@@ -224,13 +224,14 @@ contract TADIEngine is FunctionsClient {
   function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
     latestResponse = response;
     latestError = err;
-    emit OCRResponse(requestId, response, err);
+    
 
     bool nilErr = (err.length == 0);
     if (nilErr) {
-      string memory snapshot = abi.decode(response, (string));
+      string memory snapshot = string(response);
       latestTrackingData = smt(snapshot);
     }
+    emit OCRResponse(requestId, response, err);
   }
 
   function trackingUpdater(uint _containerId) public OnlyOwner {

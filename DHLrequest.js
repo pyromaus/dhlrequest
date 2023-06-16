@@ -10,7 +10,7 @@ async function main() {
   const signerPrivateKey = process.env.PRIVATE_KEY
   const signer = new ethers.Wallet(signerPrivateKey, provider)
 
-  const tadiEngineAddress = "0x6266530eCC40E53d20Fd22C50fcF2a08DBD78B95"
+  const tadiEngineAddress = "0xcc41Ab26194DB106c5Ab4eb442FEdea261703904"
   const tadiEngineAbiPath = "build/artifacts/contracts/TADIEngine.sol/TADIEngine.json"
 
   const contractAbi = JSON.parse(await fs.readFile(tadiEngineAbiPath, "utf8")).abi
@@ -44,7 +44,7 @@ async function main() {
   const containerID = 1
   console.log(`New Container ID: ${containerID}`)
   const checkForDelayTx = await tadiContract.checkForDelay(containerID)
-  const checkForDelayTxResponse = await checkForDelayTx.wait(2)
+  const checkForDelayTxResponse = await checkForDelayTx.wait(1)
   const tadiBalance = await tadiContract.provider.getBalance(tadiContract.address)
   console.log(`Checked for delays. Contract balance: ${tadiBalance}`)
 
@@ -52,7 +52,7 @@ async function main() {
 
   const purchaseTx = await tadiContract.purchaseDelayProtection(containerID, {
     value: parsedPremium,
-    gasLimit: 12000000,
+    gasLimit: 1200000,
   })
   const purchaseReceipt = await purchaseTx.wait(1)
 
@@ -61,7 +61,7 @@ async function main() {
 
   const secondDelayTx = await tadiContract.checkForDelay(containerID, { gasLimit: 4200000 })
   console.log("Checking for shipment delays..")
-  await secondDelayTx.wait(2)
+  const secondDelayTxResponse = await secondDelayTx.wait(1)
   console.log(`Delay detected, with protection. Sending payout immediately..`)
 
   const tadiEndingBalance = await tadiContract.provider.getBalance(tadiContract.address)
@@ -70,15 +70,11 @@ async function main() {
   console.log(`Premium = 0.02 MATIC`)
 
   console.log(`Attempting to track your container via the DHL API...`)
-  // Transaction config
-  const gasLimit = 12000000 // Transaction gas limit
-  const verificationBlocks = 2 // Number of blocks to wait for transaction
+  const gasLimit = 1300000 
+  const verificationBlocks = 2 
 
-  // Chainlink Functions request config
-  // Chainlink Functions subscription ID
   const subscriptionId = 1305
-  // Gas limit for the Chainlink Functions request
-  const requestGas = 12000000
+  const requestGas = 300000
 
   const source = await fs.readFile("./DHLsource.js", "utf8")
   const args = [trackingNumber]
@@ -188,9 +184,9 @@ async function main() {
 
     setTimeout(() => reject("5 minutes brah"), 300_000)
   })
-  const testTx = await tadiContract.ltrTester("Holland", "1696969696", { gasLimit: 4200000 })
+  const testTx = await tadiContract.ltrTester("Holland", "1696969696", { gasLimit: 1300000 })
   await testTx.wait(1)
-  const updaterTx = await tadiContract.trackingUpdater(containerID, { gasLimit: 4200000 })
+  const updaterTx = await tadiContract.trackingUpdater(containerID, { gasLimit: 1300000 })
   await updaterTx.wait(1)
   console.log(`Latest Location and timestamp:`)
   const latestLoc = await tadiContract.getLatestLocation(containerID)
@@ -199,12 +195,6 @@ async function main() {
   console.log(`Time: ${latestTimestamp}`)
 }
 
-// Encrypt the secrets as defined in requestConfig
-// This is a modified version of buildRequest.js from the starter kit:
-// ./FunctionsSandboxLibrary/buildRequest.js
-// Expects one of the following:
-//   - A JSON object with { apiKey: 'your_secret_here' }
-//   - An array of secretsURLs
 async function getEncryptedSecrets(secrets, oracle, signerPrivateKey = null) {
   let DONPublicKey = await oracle.getDONPublicKey()
 
@@ -247,9 +237,7 @@ async function getEncryptedSecrets(secrets, oracle, signerPrivateKey = null) {
   return "0x"
 }
 
-// Check each URL in secretsURLs to make sure it is available
-// Code is from ./tasks/Functions-client/buildRequestJSON.js
-// in the starter kit.
+
 async function verifyOffchainSecrets(secretsURLs, oracle) {
   const [nodeAddresses] = await oracle.getAllNodePublicKeys()
   const offchainSecretsResponses = []
@@ -290,8 +278,7 @@ async function verifyOffchainSecrets(secretsURLs, oracle) {
   return true
 }
 
-// Encrypt with the signer private key for sending secrets through an on-chain contract
-// Code is from ./FunctionsSandboxLibrary/encryptSecrets.js
+
 async function encryptWithSignature(signerPrivateKey, readerPublicKey, message) {
   const signature = ethcrypto.default.sign(signerPrivateKey, ethcrypto.default.hash.keccak256(message))
   const payload = {
@@ -301,8 +288,7 @@ async function encryptWithSignature(signerPrivateKey, readerPublicKey, message) 
   return await (0, encrypt)(readerPublicKey, JSON.stringify(payload))
 }
 
-// Encrypt with the DON public key
-// Code is from ./FunctionsSandboxLibrary/encryptSecrets.js
+
 async function encrypt(readerPublicKey, message) {
   const encrypted = await ethcrypto.default.encryptWithPublicKey(readerPublicKey, message)
   return ethcrypto.default.cipher.stringify(encrypted)
@@ -337,7 +323,7 @@ const createGist = async (githubApiToken, encryptedOffchainSecrets) => {
   }
 }
 
-// code from ./tasks/utils
+
 const checkTokenGistScope = async (githubApiToken) => {
   const headers = {
     Authorization: `Bearer ${githubApiToken}`,
@@ -362,7 +348,7 @@ const checkTokenGistScope = async (githubApiToken) => {
   return true
 }
 
-// code from ./tasks/utils
+
 const deleteGist = async (githubApiToken, gistURL) => {
   const headers = {
     Authorization: `Bearer ${githubApiToken}`,

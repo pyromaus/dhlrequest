@@ -136,12 +136,13 @@ async function main() {
       return resolve()
     }
 
-    const requestTx = await tadiContract.executeRequest(
+    const requestTx = await tadiContract.requestShipmentTracking(
       source,
       encryptedSecrets ?? "0x",
       args ?? [],
       subscriptionId,
       requestGas,
+      containerID
       { gasLimit: gasLimit }
     )
 

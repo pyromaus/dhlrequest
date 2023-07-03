@@ -148,7 +148,7 @@ async function main() {
 
     let requestId
 
-    console.log(`Waiting ${verificationBlocks} blocks for transaction ` + `${requestTx2.hash} to be confirmed...`)
+    console.log(`Waiting ${verificationBlocks} blocks for transaction ` + `${requestTx.hash} to be confirmed...`)
 
     const requestTxReceipt = await requestTx.wait(verificationBlocks)
 

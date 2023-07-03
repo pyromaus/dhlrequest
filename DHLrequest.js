@@ -4,12 +4,16 @@ const fs = require("fs").promises
 const { ethers } = require("ethers")
 
 async function main() {
+  // Provider config currently set for Polygon Mumbai
 
   const provider = new ethers.providers.JsonRpcProvider(process.env.POLYGON_MUMBAI_RPC_URL)
 
+  // Get private wallet key from the .env file
   const signerPrivateKey = process.env.PRIVATE_KEY
   const signer = new ethers.Wallet(signerPrivateKey, provider)
 
+  // TADI contract
+  // replace with your deployed address on Mumbai
   const tadiEngineAddress = "0xcc41Ab26194DB106c5Ab4eb442FEdea261703904"
   const tadiEngineAbiPath = "build/artifacts/contracts/TADIEngine.sol/TADIEngine.json"
 
@@ -17,22 +21,24 @@ async function main() {
   const tadiContract = new ethers.Contract(tadiEngineAddress, contractAbi, signer)
 
   const startingTadiBalance = await tadiContract.provider.getBalance(tadiContract.address)
-  console.log(`Welcome to the Tracking and Delay Insurance (TADI) App`)
   console.log(`Starting TADI balance: ${startingTadiBalance}`)
   console.log(`Payout = 0.2 MATIC`)
   console.log(`Premium = 0.02 MATIC`)
 
-  const newShipperAddy = "0x9b25b2a4675b0efe83c12365456cdc2f2e588fb7"
+  // replace with your metamask/preferred wallet address
+  const shipperAddress = "0x9b25b2a4675b0efe83c12365456cdc2f2e588fb7"
   const containerOrigin = "Honky Tonk Town"
   const grossWeight = 2500
+  // DHL tracking number. because most DHL numbers
+  // start with zeros, we must use a string type
   const trackingNumber = "00340434726200036723"
   const dueDate = 1688852486
   const parsedPremium = ethers.utils.parseEther("0.02")
-  const newShipperTx = await tadiContract.newShipper(newShipperAddy)
-  console.log("Creating new Shipper file..")
+  const newShipperTx = await tadiContract.newShipper(shipperAddress)
+  console.log("Creating new Shipper account...")
   const shipperTxResponse = await newShipperTx.wait(1)
   const newContainerTx = await tadiContract.addContainer(
-    newShipperAddy,
+    shipperAddress,
     containerOrigin,
     grossWeight,
     trackingNumber,
@@ -41,12 +47,13 @@ async function main() {
   )
   console.log("Adding shipment container info...")
   const containerTxResponse = await newContainerTx.wait(1)
-  const containerID = 1
+  const shippersContainerIDArray = await tadiContract.getContainerIds(shipperAddress)
+  const containerID = shippersContainerIDArray[0]
   console.log(`New Container ID: ${containerID}`)
   const checkForDelayTx = await tadiContract.checkForDelay(containerID)
-  const checkForDelayTxResponse = await checkForDelayTx.wait(1)
+  const checkForDelayTxResponse = await checkForDelayTx.wait(2)
   const tadiBalance = await tadiContract.provider.getBalance(tadiContract.address)
-  console.log(`Checked for delays. Contract balance: ${tadiBalance}`)
+  console.log(`Checked for delays - all good. Contract balance: ${tadiBalance}`)
 
   console.log(`Purchasing delay protection for the container...`)
 
@@ -57,11 +64,11 @@ async function main() {
   const purchaseReceipt = await purchaseTx.wait(1)
 
   await tadiContract.simulateDelay(containerID)
-  console.log(`Simulating delay... Container ${containerID} is due YESTERDAY`)
+  console.log(`Simulating delay... Container ${containerID} was due YESTERDAY`)
 
-  const secondDelayTx = await tadiContract.checkForDelay(containerID, { gasLimit: 4200000 })
   console.log("Checking for shipment delays..")
-  const secondDelayTxResponse = await secondDelayTx.wait(1)
+  const secondDelayTx = await tadiContract.checkForDelay(containerID, { gasLimit: 4200000 })
+  const secondDelayTxResponse = await secondDelayTx.wait(2)
   console.log(`Delay detected, with protection. Sending payout immediately..`)
 
   const tadiEndingBalance = await tadiContract.provider.getBalance(tadiContract.address)
@@ -69,11 +76,13 @@ async function main() {
   console.log(`Payout = 0.2 MATIC`)
   console.log(`Premium = 0.02 MATIC`)
 
-  console.log(`Attempting to track your container via the DHL API...`)
-  const gasLimit = 1300000 
-  const verificationBlocks = 2 
+  console.log(`Attempting to track your container...`)
+  const gasLimit = 1300000
+  const verificationBlocks = 2
 
+  // Chainlink Functions subscription ID
   const subscriptionId = 1305
+  // Gas limit for the Chainlink Functions request
   const requestGas = 300000
 
   const source = await fs.readFile("./DHLsource.js", "utf8")
@@ -138,7 +147,7 @@ async function main() {
 
     let requestId
 
-    console.log(`Waiting ${verificationBlocks} blocks for transaction ` + `${requestTx.hash} to be confirmed...`)
+    console.log(`Waiting ${verificationBlocks} blocks for transaction ` + `${requestTx2.hash} to be confirmed...`)
 
     const requestTxReceipt = await requestTx.wait(verificationBlocks)
 
@@ -184,15 +193,16 @@ async function main() {
 
     setTimeout(() => reject("5 minutes brah"), 300_000)
   })
-  const testTx = await tadiContract.ltrTester("Holland", "1696969696", { gasLimit: 1300000 })
-  await testTx.wait(1)
-  const updaterTx = await tadiContract.trackingUpdater(containerID, { gasLimit: 1300000 })
+  const updaterTx = await tadiContract.writeTrackingResponseToContainer(containerID, { gasLimit: 200000 })
   await updaterTx.wait(1)
+
   console.log(`Latest Location and timestamp:`)
   const latestLoc = await tadiContract.getLatestLocation(containerID)
   const latestTimestamp = await tadiContract.getLatestTimestamp(containerID)
+
   console.log(`Location: ${latestLoc}`)
   console.log(`Time: ${latestTimestamp}`)
+  console.log("Thanks for using TADI. (= ")
 }
 
 async function getEncryptedSecrets(secrets, oracle, signerPrivateKey = null) {
@@ -237,7 +247,6 @@ async function getEncryptedSecrets(secrets, oracle, signerPrivateKey = null) {
   return "0x"
 }
 
-
 async function verifyOffchainSecrets(secretsURLs, oracle) {
   const [nodeAddresses] = await oracle.getAllNodePublicKeys()
   const offchainSecretsResponses = []
@@ -278,7 +287,6 @@ async function verifyOffchainSecrets(secretsURLs, oracle) {
   return true
 }
 
-
 async function encryptWithSignature(signerPrivateKey, readerPublicKey, message) {
   const signature = ethcrypto.default.sign(signerPrivateKey, ethcrypto.default.hash.keccak256(message))
   const payload = {
@@ -287,7 +295,6 @@ async function encryptWithSignature(signerPrivateKey, readerPublicKey, message) 
   }
   return await (0, encrypt)(readerPublicKey, JSON.stringify(payload))
 }
-
 
 async function encrypt(readerPublicKey, message) {
   const encrypted = await ethcrypto.default.encryptWithPublicKey(readerPublicKey, message)
@@ -323,7 +330,6 @@ const createGist = async (githubApiToken, encryptedOffchainSecrets) => {
   }
 }
 
-
 const checkTokenGistScope = async (githubApiToken) => {
   const headers = {
     Authorization: `Bearer ${githubApiToken}`,
@@ -347,7 +353,6 @@ const checkTokenGistScope = async (githubApiToken) => {
 
   return true
 }
-
 
 const deleteGist = async (githubApiToken, gistURL) => {
   const headers = {
@@ -381,4 +386,3 @@ main()
     console.error(error)
     process.exit(1)
   })
-

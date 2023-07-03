@@ -238,7 +238,7 @@ contract TADIEngine is FunctionsClient {
     payable(owner).transfer(s_payout);
   }
 
-  /**@dev Response received by callback is the
+  /**@dev Tracking data is received as the
    * shipment location and timestamp in one string
    * for example "Germany-1683486969"
    * This function splits this single string in two
@@ -254,8 +254,8 @@ contract TADIEngine is FunctionsClient {
   }
 
   /**@dev Once the location and timestamp are seperated, 
-   * this function will convert the timestamp from
-   * a string to a uint256
+   * the timestamp is a still a string. This function converts
+   * it to a uint256
    * "1683486969" --> 1683486969
    */
   function st2num(string memory numString) internal pure returns (uint) {

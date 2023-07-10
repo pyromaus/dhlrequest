@@ -58,6 +58,7 @@ contract TADIEngine is FunctionsClient {
   mapping(uint => address) private s_containerIdToOwner;
   mapping(address => uint[]) private s_containerIndex;
   mapping(uint => string) private s_containerIdToTrackingNo;
+  mapping(address => uint) private s_shipperAddressToId;
 
   address private immutable i_owner;
   string[] private s_latestTrackingData;
@@ -130,6 +131,7 @@ contract TADIEngine is FunctionsClient {
     SEQ_shipperID++;
     s_shippers[_shipper] = Shipper(SEQ_shipperID, _shipper);
     s_shipperIdToAddress[SEQ_shipperID] = _shipper;
+    s_shipperAddressToId[_shipper] = SEQ_shipperID;
     s_shipperIndex.push(SEQ_shipperID);
     emit ShipperCreated(_shipper);
     return SEQ_shipperID;
@@ -280,6 +282,10 @@ contract TADIEngine is FunctionsClient {
 
   function getShipperAddressById(uint _shipperId) public view returns (address) {
     return s_shipperIdToAddress[_shipperId];
+  }
+
+  function getShipperIdByAddress(address _shipper) public view returns (uint) {
+    return s_shipperAddressToId[_shipper];
   }
 
   function getLatestLocation(uint _containerID) public view returns (string memory) {
